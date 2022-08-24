@@ -75,15 +75,14 @@ def format_eqn(model, PC_index, r):
             features[i] = temp_string
         features_formatted.append(temp_string)
     features = features_copy
-    for i in range(nfeatures):
-        temp_string = features[i].replace(" ", "")
-        features[i] = temp_string
 
     coefs = model.coefficients()
     # should "clean" NaNs and replace w/ 0
     # consider moving it and coefs = model... up
     # https://www.codespeedy.com/check-if-a-numpy-array-contains-any-nan-value-in-python/
     for i in range(nfeatures):
+        temp_string = features[i].replace(" ", "")
+        features[i] = temp_string
         x = np.isnan(coefs[i])
         coefs[i][x] = 0
     sym_features = [sp.symbols(feature) for feature in features]
