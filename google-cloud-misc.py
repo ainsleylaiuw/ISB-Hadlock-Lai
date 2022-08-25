@@ -173,3 +173,99 @@ def format_eqn(model, PC_index, r):
         else:
             sym_equations_rounded_simplified.append([])
     return [sym_equations_simplified, sym_equations_rounded_simplified]
+
+#####################################################################################
+# preserved model trajectory grapher code
+t_sym = sp.symbols("t_sym")
+x_sym = sp.symbols("x:%d" % nPCs)
+x_dot_sym = sp.symbols("x:%d_dot" % nPCs)
+n_of_model = 0
+# Plot the results for each of the models
+plt.figure(figsize=(16, 10))
+#x0_test = x_test[n_of_model][0, :]
+for i in range(nPCs):
+    plt.scatter(tvals, x_test[0][:,i], sizes=[20], label="True PC" + str(i))
+for i in range(len(Sym_eqns[0][0])): #need to generalize for all Sym_eqns[all indexes]
+    ax = plt.gca()
+    #if i != nfeatures - 1:
+        #ax.set_xticklabels([])
+    if (len(Sym_eqns[0][0][i]) != 0 
+        and len(Sym_eqns[1][0][i]) != 0 
+        and len(Sym_eqns[2][0][i]) != 0):
+        ODE_Func = lambda t, x: np.array([sp.lambdify(x_sym, Sym_eqns[0][0][i][0])(x[0], x[1], x[2]),
+                                           sp.lambdify(x_sym, Sym_eqns[1][0][i][0])(x[0], x[1], x[2]),
+                                           sp.lambdify(x_sym, Sym_eqns[2][0][i][0])(x[0], x[1], x[2])
+                                         ])
+        # Now simulate the system we identified
+        print(f'solving model {i}')
+        x_test_sim = solve_ivp(ODE_Func, (tvals[0], tvals[-1]), x0_test, t_eval=tvals).y.T
+        if (
+            np.linalg.norm(x_test_sim) < 1e3
+            and Sym_eqns[0][1][i] != 0
+            and Sym_eqns[1][1][i] != 0
+            and Sym_eqns[2][1][i] != 0 #need to do for all Sym_eqns[all indexes]
+        ):
+            plt.plot(
+                tvals,
+                x_test_sim, # sim_data[n_of_model][i]
+                linestyle="dashed"#,
+                #label=str(sp.sympify(u_features_formatted[i]))
+                #+ " = "
+                #+ str(u_sym_equations_rounded_simplified[i]),
+            )
+# at the end so markers go over the lines
+
+plt.grid(True)
+#ax.set_ylim([0, 2])
+plt.legend(fontsize=8)
+plt.xlabel('Time', fontsize=15)
+plt.title('Analysis of models for 3 principal components', fontsize=15)
+
+#####################################################################################
+# preserved error grapher code
+plt.figure(figsize=(16, 10))
+t_sym = sp.symbols("t_sym")
+x_sym = sp.symbols("x:%d" % nPCs)
+x_dot_sym = sp.symbols("x:%d_dot" % nPCs)
+
+# number of models. Bad practice to use first PC tho
+n_eqn = len(Sym[0][0])
+
+# array to hold errors. Certain shape so we can index errors appropriately
+error_per_model = np.empty((n_eqn))
+
+# go thru # of models
+for i in range(n_eqn):
+    # if models exist
+    if (len(Sym_eqns[0][0][i]) != 0 
+        and len(Sym_eqns[1][0][i]) != 0 
+        and len(Sym_eqns[2][0][i]) != 0):
+        ODE_Func = lambda t, x: np.array([sp.lambdify(x_sym, Sym_eqns[0][0][i][0])(x[0], x[1], x[2]),
+                                           sp.lambdify(x_sym, Sym_eqns[1][0][i][0])(x[0], x[1], x[2]),
+                                           sp.lambdify(x_sym, Sym_eqns[2][0][i][0])(x[0], x[1], x[2])
+                                         ])
+        if (
+            np.linalg.norm(x_test_sim) < 1e3 # if models are nontrivial
+            and Sym_eqns[0][1][i] != 0
+            and Sym_eqns[1][1][i] != 0
+            and Sym_eqns[2][1][i] != 0
+        ):
+            print(f'solving model {i}')
+            # error for some sample
+            error_per_test_sample = []
+            for j in range(len(x_test)):
+                real = x_test[j]
+                # take initial state of sample
+                IC = x_test[j][0, :]
+                x_test_sim = solve_ivp(ODE_Func, (tvals[0], tvals[-1]), IC, t_eval=tvals, **integrator_keywords).y.T
+                MSE = (sum(np.square(np.subtract(real, x_test_sim)))) / (n_of_t*nPCs) # divide by dimension and timepoints
+                error_per_test_sample.append(MSE)
+            averaged_MSE = np.mean(error_per_test_sample)
+            error_per_model[i] = averaged_MSE
+plt.scatter(n_eqn,
+            error_per_model,
+            sizes=[20]
+           )
+plt.xlabel('Model #', fontsize=15)
+plt.ylabel('Error', fontsize=15)
+plt.title('Error per pySINDy-generated Model', fontsize=20)
